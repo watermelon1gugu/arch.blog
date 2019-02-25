@@ -37,3 +37,11 @@ sudo apt-get update
 sudo apt-get install oracle-java8-installer
 ```
 
+# 添加sudo用户组
+
+```bash
+sudo useradd -m hadoop -s /bin/bash //创建hadoop用户
+sudo passwd hadoop //设置密码
+sudo adduser hadoop sudo //添加管理员权限
+```
+
