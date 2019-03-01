@@ -45,3 +45,7 @@ sudo passwd hadoop //设置密码
 sudo adduser hadoop sudo //添加管理员权限
 ```
 
+# 截图快捷键
+
+![default](https://user-images.githubusercontent.com/25349066/53628622-81870e80-3c46-11e9-8009-f7ea0676763e.png)
+
