@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html>
+    <!-- title -->
+
+
+
+
+<head><meta name="generator" content="Hexo 3.9.0">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="author" content="Arch Yi">
+    <meta name="renderer" content="webkit">
+    <meta name="copyright" content="Arch Yi">
+    <meta name="keywords" content="Hexo | Arch Yi">
+    <meta name="description" content>
+    <meta name="Cache-Control" content="no-cache">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <title>浅析systemd · 帅气咕杂货间</title>
+    <style type="text/css">
+    @font-face {
+        font-family: 'Oswald-Regular';
+        src: url("/font/Oswald-Regular.ttf");
+    }
+
+    body {
+        margin: 0;
+    }
+
+    header,
+    footer,
+    .back-top,
+    .sidebar,
+    .container,
+    .site-intro-meta,
+    .toc-wrapper {
+        display: none;
+    }
+
+    .site-intro {
+        position: relative;
+        z-index: 3;
+        width: 100%;
+        /* height: 50vh; */
+        overflow: hidden;
+    }
+
+    .site-intro-placeholder {
+        position: absolute;
+        z-index: -2;
+        top: 0;
+        left: 0;
+        width: calc(100% + 300px);
+        height: 100%;
+        background: repeating-linear-gradient(-45deg, #444 0, #444 80px, #333 80px, #333 160px);
+        background-position: center center;
+        transform: translate3d(-226px, 0, 0);
+        animation: gradient-move 2.5s ease-out 0s 1;
+    }
+
+    @keyframes gradient-move {
+        0% {
+            transform: translate3d(-226px, 0, 0);
+        }
+        100% {
+            transform: translate3d(0, 0, 0);
+        }
+    }
+
+</style>
+
+    <link rel="preload" href="/css/style.css?v=20180721" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <link rel="stylesheet" href="/css/mobile.css?v=20180721" media="(max-width: 980px)">
+    
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    
+    <!-- /*! loadCSS. [c]2017 Filament Group, Inc. MIT License */
+/* This file is meant as a standalone workflow for
+- testing support for link[rel=preload]
+- enabling async CSS loading in browsers that do not support rel=preload
+- applying rel preload css once loaded, whether supported or not.
+*/ -->
+<script>
+(function( w ){
+	"use strict";
+	// rel=preload support test
+	if( !w.loadCSS ){
+		w.loadCSS = function(){};
+	}
+	// define on the loadCSS obj
+	var rp = loadCSS.relpreload = {};
+	// rel=preload feature support test
+	// runs once and returns a function for compat purposes
+	rp.support = (function(){
+		var ret;
+		try {
+			ret = w.document.createElement( "link" ).relList.supports( "preload" );
+		} catch (e) {
+			ret = false;
+		}
+		return function(){
+			return ret;
+		};
+	})();
+
+	// if preload isn't supported, get an asynchronous load by using a non-matching media attribute
+	// then change that media back to its intended value on load
+	rp.bindMediaToggle = function( link ){
+		// remember existing media attr for ultimate state, or default to 'all'
+		var finalMedia = link.media || "all";
+
+		function enableStylesheet(){
+			link.media = finalMedia;
+		}
+
+		// bind load handlers to enable media
+		if( link.addEventListener ){
+			link.addEventListener( "load", enableStylesheet );
+		} else if( link.attachEvent ){
+			link.attachEvent( "onload", enableStylesheet );
+		}
+
+		// Set rel and non-applicable media type to start an async request
+		// note: timeout allows this to happen async to let rendering continue in IE
+		setTimeout(function(){
+			link.rel = "stylesheet";
+			link.media = "only x";
+		});
+		// also enable media after 3 seconds,
+		// which will catch very old browsers (android 2.x, old firefox) that don't support onload on link
+		setTimeout( enableStylesheet, 3000 );
+	};
+
+	// loop through link elements in DOM
+	rp.poly = function(){
+		// double check this to prevent external calls from running
+		if( rp.support() ){
+			return;
+		}
+		var links = w.document.getElementsByTagName( "link" );
+		for( var i = 0; i < links.length; i++ ){
+			var link = links[ i ];
+			// qualify links to those with rel=preload and as=style attrs
+			if( link.rel === "preload" && link.getAttribute( "as" ) === "style" && !link.getAttribute( "data-loadcss" ) ){
+				// prevent rerunning on link
+				link.setAttribute( "data-loadcss", true );
+				// bind listeners to toggle media back
+				rp.bindMediaToggle( link );
+			}
+		}
+	};
+
+	// if unsupported, run the polyfill
+	if( !rp.support() ){
+		// run once at least
+		rp.poly();
+
+		// rerun poly on an interval until onload
+		var run = w.setInterval( rp.poly, 500 );
+		if( w.addEventListener ){
+			w.addEventListener( "load", function(){
+				rp.poly();
+				w.clearInterval( run );
+			} );
+		} else if( w.attachEvent ){
+			w.attachEvent( "onload", function(){
+				rp.poly();
+				w.clearInterval( run );
+			} );
+		}
+	}
+
+
+	// commonjs
+	if( typeof exports !== "undefined" ){
+		exports.loadCSS = loadCSS;
+	}
+	else {
+		w.loadCSS = loadCSS;
+	}
+}( typeof global !== "undefined" ? global : this ) );
+</script>
+
+    <link rel="icon" href="/assets/favicon.ico">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/webfontloader@1.6.28/webfontloader.min.js" as="script">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js" as="script">
+    <link rel="preload" href="/scripts/main.js" as="script">
+    <link rel="preload" as="font" href="/font/Oswald-Regular.ttf" crossorigin>
+    <link rel="preload" as="font" href="https://at.alicdn.com/t/font_327081_1dta1rlogw17zaor.woff" crossorigin>
+    
+    <!-- fancybox -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fancybox/3.2.5/jquery.fancybox.min.js" defer></script>
+    <!-- 百度统计  -->
+    
+    <!-- 谷歌统计  -->
+    
+</head>
+
+    
+        <body class="post-body">
+    
+    
+<header class="header">
+
+    <div class="read-progress"></div>
+    <div class="header-sidebar-menu">&#xe775;</div>
+    <!-- post页的toggle banner  -->
+    
+    <div class="banner">
+            <div class="blog-title">
+                <a href="/" >帅气咕杂货间</a>
+            </div>
+            <div class="post-title">
+                <a href="#" class="post-name">浅析systemd</a>
+            </div>
+    </div>
+    
+    <a class="home-link" href=/>帅气咕杂货间</a>
+</header>
+    <div class="wrapper">
+        <div class="site-intro" style=
+
+
+
+
+
+
+
+
+height:50vh;
+
+>
+    
+    <!-- 主页  -->
+    
+    
+    <!-- 404页  -->
+            
+    <div class="site-intro-placeholder"></div>
+    <div class="site-intro-img" style="background-image: url(/intro/post-bg.jpg)"></div>
+    <div class="site-intro-meta">
+        <!-- 标题  -->
+        <h1 class="intro-title">
+            <!-- 主页  -->
+            
+            浅析systemd
+            <!-- 404 -->
+            
+        </h1>
+        <!-- 副标题 -->
+        <p class="intro-subtitle">
+            <!-- 主页副标题  -->
+            
+            
+            <!-- 404 -->
+            
+        </p>
+        <!-- 文章页meta -->
+        
+            <div class="post-intros">
+                <!-- 文章页标签  -->
+                
+                    <div class= post-intro-tags >
+    
+        <a class="post-tag" href="javascript:void(0);" data-tags = "systemd">systemd</a>
+    
+</div>
+                
+                
+                    <div class="post-intro-read">
+                        <span>Word count: <span class="post-count">4,640</span> / Reading time: <span class="post-count">17 min</span></span>
+                    </div>
+                
+                <div class="post-intro-meta">
+                    <span class="post-intro-calander iconfont-archer">&#xe676;</span>
+                    <span class="post-intro-time">2019/09/09</span>
+                    
+                    <span id="busuanzi_container_page_pv" class="busuanzi-pv">
+                        <span class="iconfont-archer">&#xe602;</span>
+                        <span id="busuanzi_value_page_pv"></span>
+                    </span>
+                    
+                    <span class="shareWrapper">
+                        <span class="iconfont-archer shareIcon">&#xe71d;</span>
+                        <span class="shareText">Share</span>
+                        <ul class="shareList">
+                            <li class="iconfont-archer share-qr" data-type="qr">&#xe75b;
+                                <div class="share-qrcode"></div>
+                            </li>
+                            <li class="iconfont-archer" data-type="weibo">&#xe619;</li>
+                            <li class="iconfont-archer" data-type="qzone">&#xe62e;</li>
+                            <li class="iconfont-archer" data-type="twitter">&#xe634;</li>
+                            <li class="iconfont-archer" data-type="facebook">&#xe67a;</li>
+                        </ul>
+                    </span>
+                </div>
+            </div>
+        
+    </div>
+</div>
+        <script>
+ 
+  // get user agent
+  var browser = {
+    versions: function () {
+      var u = window.navigator.userAgent;
+      return {
+        userAgent: u,
+        trident: u.indexOf('Trident') > -1, //IE内核
+        presto: u.indexOf('Presto') > -1, //opera内核
+        webKit: u.indexOf('AppleWebKit') > -1, //苹果、谷歌内核
+        gecko: u.indexOf('Gecko') > -1 && u.indexOf('KHTML') == -1, //火狐内核
+        mobile: !!u.match(/AppleWebKit.*Mobile.*/), //是否为移动终端
+        ios: !!u.match(/\(i[^;]+;( U;)? CPU.+Mac OS X/), //ios终端
+        android: u.indexOf('Android') > -1 || u.indexOf('Linux') > -1, //android终端或者uc浏览器
+        iPhone: u.indexOf('iPhone') > -1 || u.indexOf('Mac') > -1, //是否为iPhone或者安卓QQ浏览器
+        iPad: u.indexOf('iPad') > -1, //是否为iPad
+        webApp: u.indexOf('Safari') == -1, //是否为web应用程序，没有头部与底部
+        weixin: u.indexOf('MicroMessenger') == -1, //是否为微信浏览器
+        uc: u.indexOf('UCBrowser') > -1 //是否为android下的UC浏览器
+      };
+    }()
+  }
+  console.log("userAgent:" + browser.versions.userAgent);
+
+  // callback
+  function fontLoaded() {
+    console.log('font loaded');
+    if (document.getElementsByClassName('site-intro-meta')) {
+      document.getElementsByClassName('intro-title')[0].classList.add('intro-fade-in');
+      document.getElementsByClassName('intro-subtitle')[0].classList.add('intro-fade-in');
+      var postIntros = document.getElementsByClassName('post-intros')[0]
+      if (postIntros) {
+        postIntros.classList.add('post-fade-in');
+      }
+    }
+  }
+
+  // UC不支持跨域，所以直接显示
+  function asyncCb(){
+    if (browser.versions.uc) {
+      console.log("UCBrowser");
+      fontLoaded();
+    } else {
+      WebFont.load({
+        custom: {
+          families: ['Oswald-Regular']
+        },
+        loading: function () {  //所有字体开始加载
+          // console.log('loading');
+        },
+        active: function () {  //所有字体已渲染
+          fontLoaded();
+        },
+        inactive: function () { //字体预加载失败，无效字体或浏览器不支持加载
+          console.log('inactive: timeout');
+          fontLoaded();
+        },
+        timeout: 5000 // Set the timeout to two seconds
+      });
+    }
+  }
+
+  function asyncErr(){
+    console.warn('script load from CDN failed, will load local script')
+  }
+
+  // load webfont-loader async, and add callback function
+  function async(u, cb, err) {
+    var d = document, t = 'script',
+      o = d.createElement(t),
+      s = d.getElementsByTagName(t)[0];
+    o.src = u;
+    if (cb) { o.addEventListener('load', function (e) { cb(null, e); }, false); }
+    if (err) { o.addEventListener('error', function (e) { err(null, e); }, false); }
+    s.parentNode.insertBefore(o, s);
+  }
+
+  var asyncLoadWithFallBack = function(arr, success, reject) {
+      var currReject = function(){
+        reject()
+        arr.shift()
+        if(arr.length)
+          async(arr[0], success, currReject)
+        }
+
+      async(arr[0], success, currReject)
+  }
+
+  asyncLoadWithFallBack([
+    "https://cdn.jsdelivr.net/npm/webfontloader@1.6.28/webfontloader.min.js", 
+    "https://cdn.bootcss.com/webfont/1.6.28/webfontloader.js",
+    "/lib/webfontloader.min.js"
+  ], asyncCb, asyncErr)
+</script>        
+        <img class="loading" src="/assets/loading.svg" style="display: block; margin: 6rem auto 0 auto; width: 6rem; height: 6rem;" />
+        <div class="container container-unloaded">
+            <main class="main post-page">
+    <article class="article-entry">
+        <h2 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h2><p>《鸟哥的Linux私房菜》</p>
+<h2 id="daemon与service"><a href="#daemon与service" class="headerlink" title="daemon与service"></a>daemon与service</h2><ul>
+<li><p>service是系统为了实现某些功能而必须要提供的一些服务。</p>
+</li>
+<li><p>service的提供总是需要程序的运行。所以达成这个service的程序称为daemon。</p>
+</li>
+<li><p>比如达成循环型例行性工作调度服务（service）的程序 就是 crond这个daemon</p>
+</li>
+<li><p>达成某个服务需要一支daemon在背景中运行，没有这支daemon就不会有service</p>
+</li>
+<li>daemon是一只程序(program)执行后的程序(process),通常daemon所处的原本程序(program)命名为{xxx}d.例如atd和crond</li>
+</ul>
+<h2 id="systemd的好处"><a href="#systemd的好处" class="headerlink" title="systemd的好处"></a>systemd的好处</h2><ul>
+<li>平行处理所有服务，相较于init。systemd可以平行启动所有没有相互依赖的服务。</li>
+<li>一经要求就回应(on-demand)(按需启动)的启动方式：systemd全部就是仅有一只systemd服务搭配systemctl指令来处理。此外，systemd常驻内存，当有任何需要（on-demand)时，都可以立即处理后续的daemon启动服务。</li>
+<li>服务相依性自我检查：由于systemd可以自订服务相依性的检查，因此如果B服务是架构在A服务上启动的，那么在没有启动服务A的情况下启动服务B，systemd会自动启动服务A。</li>
+<li>依daemon功能分类：systemd管理的服务非常多，为了清晰服务的功能，首先systemd先定义所有的服务为一个服务单位(unit)，并将该unit归类到不同的服务类型去(type)，systemd将服务单位区分为service,socket,target,path,snapshot,timer等不同的类型(type)。</li>
+<li>将多个daemons集合成一个群组。systemd可以将许多个功能集合为一个所谓的target项目，这个项目只要在设计操作环境的创建，所以是集合了许多的daemons，亦即是执行某个target就是执行好多个daemon的意思</li>
+<li>向下兼容旧的init服务脚本：基本上，systemd是可以相容于init的服务脚本的。因此，就的init启动脚本也能通过systemd来管理。</li>
+</ul>
+<h2 id="system配置文件目录"><a href="#system配置文件目录" class="headerlink" title="system配置文件目录"></a>system配置文件目录</h2><p>基本上，systemd将过去所谓的daemon执行脚本通通称为一个服务单位(unit),而每种服务依据功能分为了不同的类型(type)。基本的类型有系统服务、数据监听和交换的插槽档服务(socket)、储存系统状态的快照类型、提供不同类似执行等级分类的操作环境(target)等等。所有的配置文件都放置于下面的目录中：</p>
+<ul>
+<li>/usr/lib/systemd/system/：每个服务最主要的启动脚本设置，类似于/etc/init.d下面的文件</li>
+<li>/run/systemd/system/：系统执行过程中所产生的服务脚本，这些脚本的优先级要高于/usr/lib/systemd/system/</li>
+<li>/etc/systemd/system/：管理员依据主机系统的需求所创建的执行脚本，优先级高于/run/systemd/system/</li>
+</ul>
+<p>所以，系统开机时会不会执行某些服务，是根据/etc/systemd/system/下的设置（优先级高），所以该目录下是一大堆链接文件，而实际执行的systemd启动脚本配置文件都是放置在/usr/lib/systemd/system/下面的。因此，如果需要修改某个服务启动的设置，应该要去/usr/lib/systemd/system/下面修改才对，/etc/systemd/system/仅是链接到正确的执行脚本配置文件而已。</p>
+<h2 id="systemd的unit分类说明"><a href="#systemd的unit分类说明" class="headerlink" title="systemd的unit分类说明"></a>systemd的unit分类说明</h2><p>/usr/lib/systemd/system/以下的数据根据扩展名进行区分type。</p>
+<table>
+<thead>
+<tr>
+<th>扩展名</th>
+<th>主要服务功能</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>.service</td>
+<td>一般服务类型(service unit):主要是系统服务，包括服务器本身所需要的本机服务以及网络服务都是，比较经常使用到的服务大多是这种类型，所以也是最常见的类型！</td>
+</tr>
+<tr>
+<td>.socket</td>
+<td>内部程序数据交换的插槽服务 （socket unit）：主要是 IPC （Interprocess communication） 的传输讯息插槽档 （socket file） 功能。 这种 类型的服务通常在监控讯息传递的插槽档，当有通过此插槽档传递讯息来 说要链接服务时，就依据当时的状态将该用户的要求传送到对应的 daemon， 若 daemon 尚未启动，则启动该 daemon 后再传送用户的要 求。使用 socket 类型的服务一般是比较不会被用到的服务，因此在开机时 通常会稍微延迟启动的时间 （因为比较没有这么常用嘛！）。一般用于本 机服务比较多，例如我们的图形界面很多的软件都是通过 socket 来进行本 机程序数据交换的行为。 （这与早期的 xinetd 这个 super daemon 有部份 的相似喔！）</td>
+</tr>
+<tr>
+<td>.target</td>
+<td>执行环境类型(target unit)：其实是一群unit的集合，例如上面表格中提到的multi-user.target其实就是一堆服务的集合,选择执行multi-user.target就是执行一堆其他.service或.socket之类的服务</td>
+</tr>
+<tr>
+<td>.mount/.automount</td>
+<td>文件系统挂载相关服务(automount unit/mount unit)：例如来自网络的自动挂载、NFS文件系统挂载等与文件系统相关性较高的程序管理。</td>
+</tr>
+<tr>
+<td>.path</td>
+<td>侦测特定文件或目录类型(path unit)：某些服务需要侦测某些特定的目录来提供队列服务，例如最常见的打印服务，就需要通过侦测打印队列目录来启动打印功能！这时候就得要.path的服务类型支持了！</td>
+</tr>
+<tr>
+<td>.timer</td>
+<td>循环执行的服务(timer unit)：这个东西有点累anacrontab.不过是由systemd主动提供的，比anacrontab更有弹性！</td>
+</tr>
+</tbody>
+</table>
+<h2 id="通过systemctl管理单一服务-service-unit-的启动-开机启动与观察状态"><a href="#通过systemctl管理单一服务-service-unit-的启动-开机启动与观察状态" class="headerlink" title="通过systemctl管理单一服务(service unit)的启动/开机启动与观察状态"></a>通过systemctl管理单一服务(service unit)的启动/开机启动与观察状态</h2><p><img src="https://user-images.githubusercontent.com/25349066/64608306-ee047680-d3fc-11e9-8fc3-260862126f1d.png" alt="image"></p>
+<p>使用systemctl status atd.service 查看atd这个服务的状态</p>
+<p>Loaded: 这行在说明，开机时这个unit会不会启动，enabled为开机启动，disable开机不会启动</p>
+<p>Active:现在这个unit的状态为正在执行(running)或没有执行(dead)</p>
+<p>后面几行则是在说明这个unit程序的PID状态以及最后一行显示这个服务的的登录文件信息</p>
+<p>文件信息格式为:”时间” “讯息发送主机” “哪一个服务的讯息” “实际讯息内容”</p>
+<p>所以上面显示的讯息是： 这个atd服务已启动延迟执行计划的意思。</p>
+<p><img src="https://user-images.githubusercontent.com/25349066/64608795-00cb7b00-d3fe-11e9-8b81-6e6a32b6abb0.png" alt="image"></p>
+<p>使用sytemctl stop atd.service关闭atd服务。不应该使用kill的方式来关掉一个正常的服务，否则systemctl会无法继续监控该服务。最后两行为新增加的登录讯息，告诉我们目前的系统状态。</p>
+<p>第二行中为enabled 表示它在重新开机后仍会启动</p>
+<p>Active几种基本状态：</p>
+<ul>
+<li>active （running）：正有一只或多只程序正在系统中执行的意思，举例来说，正在执行 中的 vsftpd 就是这种模式。 </li>
+<li>active （exited）：仅执行一次就正常结束的服务，目前并没有任何程序在系统中执行，举例来说，开机或者是挂载时才会进行一次的 quotaon 功能，就是这种模式！ quotaon 不须一直执行～只须执行一次之后，就交给文件系统去自行处理啰！通常用 bash shell 写的小型服务，大多是属于这种类型 （无须常驻内存）。</li>
+<li>active （waiting）：正在执行当中，不过还再等待其他的事件才能继续处理。举例来 说，打印的伫列相关服务就是这种状态！ 虽然正在启动中，不过，也需要真的有伫列进 来 （打印工作） 这样他才会继续唤醒打印机服务来进行下一步打印的功能。</li>
+<li>inactive：这个服务目前没有运行的意思。</li>
+</ul>
+<p>daemon几种默认状态：</p>
+<ul>
+<li>enabled：这个daemon将在开机时被执行</li>
+<li>disabled：这个daemon在开机时不会被执行</li>
+<li>static：这个daemon不可以自己启动(enable不可)，不过可能被其他的enabled的服务唤醒(相互依赖)</li>
+<li>mask：这个daemon无论如何都不能被启动，因为已经被强制注销，可通过systemctl unmask方式改回原本状态</li>
+</ul>
+<p><img src="https://user-images.githubusercontent.com/25349066/64609988-c9120280-d400-11e9-9907-c48ca70d7d12.png" alt="image"></p>
+<p>使用systemctl list-units查看所有启动的unit</p>
+<p><img src="https://user-images.githubusercontent.com/25349066/64611188-74bc5200-d403-11e9-8c60-a24e554171cf.png" alt="image"></p>
+<p>使用systemctl list-unit-files查看已安装的所有unit</p>
+<h2 id="systemctl针对service类型的配置文件"><a href="#systemctl针对service类型的配置文件" class="headerlink" title="systemctl针对service类型的配置文件"></a>systemctl针对service类型的配置文件</h2><h3 id="配置文件目录相关"><a href="#配置文件目录相关" class="headerlink" title="配置文件目录相关"></a>配置文件目录相关</h3><p>systemd的配置文件大部分放置于/usr/lib/systemd/system/目录内。但是该目录下的文件是原本软件所提供的位置，1建议不要修改。而要修改的位置应该放置于/etc/systemd/system/目录内。举例来说，如果你想要额外修改vsftpd.service的话，可以放置到:</p>
+<ul>
+<li>/usr/lib/systemd/system/vsftpd.service ：官方的默认配置文件</li>
+<li>/etc/systemd/system/vsftpd.service.d/custom.conf：在/etc/systemd/system下面创建与配置文件相同文件名的目录，但要加上.d扩展名。然后在该目录下创建配置文件即可。另外，配置文件最好附文件名.conf最佳，在这个目录下的文件会“累加其他设置”进入/usr/lib/systemd/system/vsftpd.service内。</li>
+<li>/etc/systemd/system/vsfrpd.service.wants/*：此目录内的文件为链接文件，设置相依服务的链接，意思是启动了vsftpd.service之后，最好再加上这个目录下建议的服务。</li>
+<li>/etc/systemd/system/vsftpd.service.requires：此目录内的文件为链接文件，设置相依服务的链接。意思是启动了vsftpd.service之后，需要事先启动哪些服务的意思。</li>
+</ul>
+<h3 id="systemctl配置文件设置项目"><a href="#systemctl配置文件设置项目" class="headerlink" title="systemctl配置文件设置项目"></a>systemctl配置文件设置项目</h3><p>例如sshd.service </p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line">[Unit] # 这个项目与此unit的解释、执行服相依性有关</span><br><span class="line">Description=OpenBSD Secure Shell server</span><br><span class="line">After=network.target auditd.service # 在此之后启动</span><br><span class="line">ConditionPathExists=!/etc/ssh/sshd_not_to_be_run</span><br><span class="line"></span><br><span class="line">[Service] # 这个项目与实际执行的指令参数有关</span><br><span class="line">EnvironmentFile=-/etc/default/ssh</span><br><span class="line">ExecStartPre=/usr/sbin/sshd -t</span><br><span class="line">ExecStart=/usr/sbin/sshd -D $SSHD_OPTS</span><br><span class="line">ExecReload=/usr/sbin/sshd -t</span><br><span class="line">ExecReload=/bin/kill -HUP $MAINPID</span><br><span class="line">KillMode=process</span><br><span class="line">Restart=on-failure</span><br><span class="line">RestartPreventExitStatus=255</span><br><span class="line">Type=notify</span><br><span class="line">RuntimeDirectory=sshd</span><br><span class="line">RuntimeDirectoryMode=0755</span><br><span class="line"></span><br><span class="line">[Install] # 这个项目说明此unit要挂载哪个target下面</span><br><span class="line">WantedBy=multi-user.target</span><br><span class="line">Alias=sshd.service</span><br></pre></td></tr></table></figure>
+<ul>
+<li>[Unit] : unit本身的说明，以及与其他相依daemon的设置，包括在什么服务之后才启动此unit之类的设置值。</li>
+<li>[Service], [Socket], [Timer], [Mount], [Path]..：不同的 unit type 就得要使用相对应的设置项目。比如sshd.service就是service。这个项目主要在规范服务启动的脚本、环境配置文件文件名、重新启动的方式等等。</li>
+<li>[Install] : 这个项目就是将此unit安装到哪个target里面去的意思.</li>
+</ul>
+<p>至于配置文件内有些设置规则还是得要说明一下： </p>
+<p>设置项目通常是可以重复的，例如我可以重复设置两个 After 在配置文件中，不过，后面 的设置会取代前面的喔！因此，如果你想要将设置值归零， 可以使用类似“ After= ”的设 置，亦即该项目的等号后面什么都没有，就将该设置归零了 （reset）。 如果设置参数需要有“是/否”的项目 （布林值, boolean），你可以使用 1, yes, true, on 代 表启动，用 0, no, false, off 代表关闭！随你喜好选择啰！ 空白行、开头为 # 或 ; 的那一行，都代表注解！</p>
+<p><strong>Unit部分：</strong></p>
+<table>
+<thead>
+<tr>
+<th>RestartSec</th>
+<th>与 Restart 有点相关性，如果这个服务被关闭，然后需要重新启动 时，大概要 sleep 多少时间再重新启动的意思。默认是 100ms （毫 秒）。</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Description</td>
+<td>就是当我们使用 systemctl list-units 时，会输出给管理员看的简易说明！当然，使用 systemctl status 输出的此服务的说明，也是这个项目！</td>
+</tr>
+<tr>
+<td>Documentation</td>
+<td>这个项目在提供管理员能够进行进一步的文件查询的功能！提供的文 件可以是如下的数据： Documentation=<a href="http://www..." target="_blank" rel="noopener">http://www...</a>. Documentation=man:sshd（8） Documentation=file:/etc/ssh/sshd_config</td>
+</tr>
+<tr>
+<td>After</td>
+<td>说明此unit是在哪个daemon启动之后才启动的意思。基本上仅是说 明服务启动的顺序而已，并没有强制要求里头的服务一定要启动后此 unit 才能启动。 以 sshd.service 的内容为例，该文件提到 After 后面 有 network.target 以及 sshd-keygen.service，但是若这两个 unit 没有 启动而强制启动 sshd.service 的话， 那么 sshd.service 应该还是能够 启动的！这与 Requires 的设置是有差异的喔！</td>
+</tr>
+<tr>
+<td>Before</td>
+<td>与 After 的意义相反，是在什么服务启动前最好启动这个服务的意思。 不过这仅是规范服务启动的顺序，<strong>并非强制要求</strong>的意思。</td>
+</tr>
+<tr>
+<td>Requires</td>
+<td>明确的定义此 unit 需要在哪个 daemon 启动后才能够启动！就是设置 相依服务啦！如果在此项设置的前导服务没有启动，那么此 unit 就不会被启动！</td>
+</tr>
+<tr>
+<td>Wants</td>
+<td>与 Requires 刚好相反，规范的是这个 unit 之后最好还要启动什么服务 比较好的意思！不过，并没有明确的规范就是了！主要的目的是希望 创建让使用者比较好操作的环境。 因此，这个 Wants 后面接的服务如 果没有启动，其实不会影响到这个 unit 本身！</td>
+</tr>
+<tr>
+<td>Conflicts</td>
+<td>代表冲突的服务！亦即这个项目后面接的服务如果有启动，那么我们 这个 unit 本身就不能启动！我们 unit 有启动，则此项目后的服务就不能启动！ 反正就是冲突性的检查啦！</td>
+</tr>
+<tr>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Service部分:</strong></p>
+<table>
+<thead>
+<tr>
+<th>设置参数</th>
+<th>参数意义说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Type</td>
+<td>说明这个 daemon 启动的方式，会影响到 ExecStart 喔！一般来说， 有下面几种类型 simple：默认值，这个 daemon 主要由 ExecStart 接 的指令串来启动，启动后常驻于内存中。forking：由 ExecStart 启动 的程序通过 spawns 延伸出其他子程序来作为此 daemon 的主要服 务。原生的父程序在启动结束后就会终止运行。 传统的 unit 服务大 多属于这种项目，例如 httpd 这个 WWW 服务，当 httpd 的程序因为 运行过久因此即将终结了，则 systemd 会再重新生出另一个子程序持 续运行后， 再将父程序删除。据说这样的性能比较好！！oneshot： 与 simple 类似，不过这个程序在工作完毕后就结束了，不会常驻在 内存中。dbus：与 simple 类似，但这个 daemon 必须要在取得一个 D-Bus 的名称后，才会继续运行！因此设置这个项目时，通常也要设 置 BusName= 才行！idle：与 simple 类似，意思是，要执行这个 daemon 必须要所有的工作都顺利执行完毕后才会执行。这类的 daemon 通常是开机到最后才执行即可的服务！比较重要的项目大概是 simple, forking 与 oneshot 了！毕竟很多服务需要子程序 （forking），而有更多的动作只需要在开机的时候执行一次 （oneshot），例如文件系统的检查与挂载啊等等的。</td>
+</tr>
+<tr>
+<td>EnvironmentFile</td>
+<td>可以指定启动脚本的环境配置文件！例如 sshd.service 的配置文件写 入到 /etc/sysconfig/sshd 当中！你也可以使用 Environment= 后面接 多个不同的 Shell 变量来给予设置！</td>
+</tr>
+<tr>
+<td>ExecStart</td>
+<td>就是<strong>实际执行此 daemon 的指令或脚本程序</strong>。你也可以使用 ExecStartPre （之前） 以及 ExecStartPost （之后） 两个设置项目 来在实际启动服务前，进行额外的指令行为。 但是你得要特别注意的 是，指令串仅接受“指令 参数 参数…”的格式，不能接受 &lt;, &gt;, &gt;&gt;,\</td>
+<td>, &amp; 等特殊字符，很多的 bash 语法也不支持喔！ 所以，要使用这些特殊 的字符时，最好直接写入到指令脚本里面去！不过，上述的语法也不 是完全不能用，亦即，若要支持比较完整的 bash 语法，那你得要使 用 Type=oneshot 才行喔！ 其他的 Type 才不能支持这些字符。</td>
+</tr>
+<tr>
+<td>ExecStop</td>
+<td>与 systemctl stop 的执行有关，关闭此服务时所进行的指令。</td>
+</tr>
+<tr>
+<td>ExecReload</td>
+<td>与 systemctl reload 有关的指令行为</td>
+</tr>
+<tr>
+<td>Restart</td>
+<td>当设置 Restart=1 时，则当此 daemon 服务终止后，会再次的启动此 服务。举例来说，如果你在 tty2 使用文字界面登陆，操作完毕后登 出，基本上，这个时候 tty2 就已经结束服务了。 但是你会看到屏幕 又立刻产生一个新的 tty2 的登陆画面等待你的登陆！那就是 Restart 的功能！除非使用 systemctl 强制将此服务关闭，否则这个服务会源 源不绝的一直重复产生！</td>
+</tr>
+<tr>
+<td>RemainAfterExit</td>
+<td>当设置为 RemainAfterExit=1 时，则当这个 daemon 所属的所有程序 都终止之后，此服务会再尝试启动。这对于 Type=oneshot 的服务很 有帮助！</td>
+</tr>
+<tr>
+<td>TimeoutSec</td>
+<td>若这个服务在启动或者是关闭时，因为某些缘故导致无法顺利“正常 启动或正常结束”的情况下，则我们要等多久才进入“强制结束”的状 态！</td>
+</tr>
+<tr>
+<td>KillMode</td>
+<td>可以是 process, control-group, none 的其中一种，如果是 process 则 daemon 终止时，只会终止主要的程序 （ExecStart 接的后面那串 指令），如果是 control-group 时， 则由此 daemon 所产生的其他 control-group 的程序，也都会被关闭。如果是 none 的话，则没有程 序会被关闭喔！</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Install部分：</strong></p>
+<table>
+<thead>
+<tr>
+<th>设置参数</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WantedBy</td>
+<td>这个设置后面接的大部分是 *.target unit ！意思是，这个 unit 本身是附挂在 哪一个 target unit 下面的！一般来说，大多的服务性质的 unit 都是附挂在 multi-user.target 下面！</td>
+</tr>
+<tr>
+<td>Also</td>
+<td>当目前这个 unit 本身被 enable 时，Also 后面接的 unit 也请 enable 的意 思！也就是具有相依性的服务可以写在这里呢！</td>
+</tr>
+<tr>
+<td>Alias</td>
+<td>进行一个链接的别名的意思！当 systemctl enable 相关的服务时，则此服务会进行链接文件的创建！以 multi-user.target 为例，这个家伙是用来作为 默认操作环境 default.target 的规划， 因此当你设置用成 default.target 时，这个 /etc/systemd/system/default.target 就会链接到 /usr/lib/systemd/system/multi-user.target 啰！</td>
+</tr>
+</tbody>
+</table>
+<h2 id="编写自己的服务"><a href="#编写自己的服务" class="headerlink" title="编写自己的服务"></a>编写自己的服务</h2><p>假设编写一个备份tmpfs的服务，脚本放在/backup下</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">#!/bin/bash</span></span><br><span class="line">cp -r /dev/shm/* ~/tmpbackup/</span><br></pre></td></tr></table></figure>
+<p>接下来设计名为backup.service的启动脚本设置,路径为/etc/systemd/system/backup.service</p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">[Unit]</span><br><span class="line">Description=备份tmpfs文件夹</span><br><span class="line"></span><br><span class="line">[Service]</span><br><span class="line">Type=simple</span><br><span class="line">ExecStart=/bin/bash /backup/backup.sh</span><br><span class="line"></span><br><span class="line">[Install]</span><br><span class="line">WantedBy=multi-user.target</span><br></pre></td></tr></table></figure>
+<p><img src="https://user-images.githubusercontent.com/25349066/64802745-ec35e100-d5bd-11e9-91f8-497610dc4775.png" alt="image"></p>
+<p>之后便编写完成</p>
+
+    </article>
+    <!-- license  -->
+    
+        <div class="license-wrapper">
+            <p>原文作者: <a href="http://watermelon1gugu.github.io">Arch Yi</a>
+            <p>原文链接: <a href="http://watermelon1gugu.github.io/2019/09/09/systemd/">http://watermelon1gugu.github.io/2019/09/09/systemd/</a>
+            <p>发表日期: <a href="http://watermelon1gugu.github.io/2019/09/09/systemd/">September 9th 2019, 12:19:12 pm</a>
+            <p>版权声明: 本文采用<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/">知识共享署名-非商业性使用 4.0 国际许可协议</a>进行许可</p>
+        </div>
+    
+    <!-- paginator  -->
+    <ul class="post-paginator">
+        <li class="next">
+            
+                <div class="nextSlogan">Next Post</div>
+                <a href= "/2019/09/12/jetbrain/" title= jetbrain相关技巧 >
+                    <div class="nextTitle">jetbrain相关技巧</div>
+                </a>
+            
+        </li>
+        <li class="previous">
+            
+                <div class="prevSlogan">Previous Post</div>
+                <a href= "/2019/04/23/czfxbj/" title= 春招复习笔记 >
+                    <div class="prevTitle">春招复习笔记</div>
+                </a>
+            
+        </li>
+    </ul>
+    <!-- 评论插件 -->
+    <!-- 来必力City版安装代码 -->
+
+    <div id="lv-container" data-id="city" data-uid= MTAyMC8zOTA0My8xNTU3MA==>
+        <script type="text/javascript">
+            (function (d, s) {
+                var j, e = d.getElementsByTagName(s)[0];
+                if (typeof LivereTower === 'function') { return; }
+                j = d.createElement(s);
+                j.src = 'https://cdn-city.livere.com/js/embed.dist.js';
+                j.async = true;
+
+                e.parentNode.insertBefore(j, e);
+            })(document, 'script');
+        </script>
+        <noscript>为正常使用来必力评论功能请激活JavaScript</noscript>
+    </div>
+
+<!-- City版安装代码已完成 -->
+    
+    
+    <!--PC和WAP自适应版-->
+
+    <!--PC版-->
+
+
+    
+    
+
+    <!-- 评论 -->
+</main>
+            <!-- profile -->
+            
+        </div>
+        <footer class="footer footer-unloaded">
+    <!-- social  -->
+    
+    <div class="social">
+        
+    
+        
+            
+                <a href="mailto:843874092@qq.com" class="iconfont-archer email" title=email ></a>
+            
+        
+    
+        
+            
+                <a href="//github.com/watermelon1gugu" class="iconfont-archer github" target="_blank" title=github></a>
+            
+        
+    
+        
+            
+                <span class="iconfont-archer wechat" title=wechat>
+                  
+                  <img class="profile-qr" src="/assets/wechat.png" />
+                </span>
+            
+        
+    
+        
+            
+                <span class="iconfont-archer qq" title=qq>
+                  
+                  <img class="profile-qr" src="/assets/qq.png" />
+                </span>
+            
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+        
+    
+
+    </div>
+    
+    <!-- powered by Hexo  -->
+    <div class="copyright">
+        <span id="hexo-power">Powered by <a href="https://hexo.io/" target="_blank">Hexo</a></span><span class="iconfont-archer power">&#xe635;</span><span id="theme-info">theme <a href="https://github.com/fi3ework/hexo-theme-archer" target="_blank">Archer</a></span>
+    </div>
+    <!-- 不蒜子  -->
+    
+    <div class="busuanzi-container">
+    
+     
+    <span id="busuanzi_container_site_pv">PV: <span id="busuanzi_value_site_pv"></span> :)</span>
+    
+    </div>
+    
+</footer>
+    </div>
+    <!-- toc -->
+    
+    <div class="toc-wrapper" style=
+    
+
+
+
+
+
+
+
+top:50vh;
+
+    >
+        <div class="toc-catalog">
+            <span class="iconfont-archer catalog-icon">&#xe613;</span><span>CATALOG</span>
+        </div>
+        <ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#参考文献"><span class="toc-number">1.</span> <span class="toc-text">参考文献</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#daemon与service"><span class="toc-number">2.</span> <span class="toc-text">daemon与service</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#systemd的好处"><span class="toc-number">3.</span> <span class="toc-text">systemd的好处</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#system配置文件目录"><span class="toc-number">4.</span> <span class="toc-text">system配置文件目录</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#systemd的unit分类说明"><span class="toc-number">5.</span> <span class="toc-text">systemd的unit分类说明</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#通过systemctl管理单一服务-service-unit-的启动-开机启动与观察状态"><span class="toc-number">6.</span> <span class="toc-text">通过systemctl管理单一服务(service unit)的启动/开机启动与观察状态</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#systemctl针对service类型的配置文件"><span class="toc-number">7.</span> <span class="toc-text">systemctl针对service类型的配置文件</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#配置文件目录相关"><span class="toc-number">7.1.</span> <span class="toc-text">配置文件目录相关</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#systemctl配置文件设置项目"><span class="toc-number">7.2.</span> <span class="toc-text">systemctl配置文件设置项目</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#编写自己的服务"><span class="toc-number">8.</span> <span class="toc-text">编写自己的服务</span></a></li></ol>
+    </div>
+    
+    <div class="back-top iconfont-archer">&#xe639;</div>
+    <div class="sidebar sidebar-hide">
+    <ul class="sidebar-tabs sidebar-tabs-active-0">
+        <li class="sidebar-tab-archives"><span class="iconfont-archer">&#xe67d;</span><span class="tab-name">Archive</span></li>
+        <li class="sidebar-tab-tags"><span class="iconfont-archer">&#xe61b;</span><span class="tab-name">Tag</span></li>
+        <li class="sidebar-tab-categories"><span class="iconfont-archer">&#xe666;</span><span class="tab-name">Cate</span></li>
+    </ul>
+    <div class="sidebar-content sidebar-content-show-archive">
+          <div class="sidebar-panel-archives">
+    <!-- 在ejs中将archive按照时间排序 -->
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <div class="total-and-search">
+        <div class="total-archive">
+        Total : 31
+        </div>
+        <!-- search  -->
+        
+    </div>
+    
+    <div class="post-archive">
+    
+    
+    
+    
+    <div class="archive-year"> 2019 </div>
+    <ul class="year-list">
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">09/12</span><a class="archive-post-title" href= "/2019/09/12/jetbrain/" >jetbrain相关技巧</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">09/09</span><a class="archive-post-title" href= "/2019/09/09/systemd/" >浅析systemd</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">04/23</span><a class="archive-post-title" href= "/2019/04/23/czfxbj/" >春招复习笔记</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">02/17</span><a class="archive-post-title" href= "/2019/02/17/dowhile-0/" >do{}while(0)的使用技巧</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">01/07</span><a class="archive-post-title" href= "/2019/01/07/makefile/" >makefile学习笔记（持续更新）</a>
+        </li>
+    
+    
+    
+    
+    
+        </ul>
+    
+    <div class="archive-year"> 2018 </div>
+    <ul class="year-list">
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">11/12</span><a class="archive-post-title" href= "/2018/11/12/Aexamination/" >记一次惨痛的笔试</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">10/16</span><a class="archive-post-title" href= "/2018/10/16/architect-awesome/" >《后端架构师技术图谱》（转载)</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">09/18</span><a class="archive-post-title" href= "/2018/09/18/mutex-Semaphore/" >浅谈信号量与互斥锁的区别和联系</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">09/03</span><a class="archive-post-title" href= "/2018/09/03/small-problem/" >开发小问题及其解决方法</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">09/01</span><a class="archive-post-title" href= "/2018/09/01/communication/" >进程间通信-管道(pipe)</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/29</span><a class="archive-post-title" href= "/2018/08/29/opencv/" >ubuntu18.04安装opencv 3.4.1</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/21</span><a class="archive-post-title" href= "/2018/08/21/tools/" >ubuntu使用小技巧(持续更新)</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/21</span><a class="archive-post-title" href= "/2018/08/21/JSP/" >在springBoot中整合JSP</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/20</span><a class="archive-post-title" href= "/2018/08/20/isdc-fork/" >isdc官网开发环境配置</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/20</span><a class="archive-post-title" href= "/2018/08/20/TIM/" >在ubuntu18.04中使用TIM</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/19</span><a class="archive-post-title" href= "/2018/08/19/mybatis-advanced-mapping/" >MyBatis框架基于Annotation注解的一对多关联映射</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/18</span><a class="archive-post-title" href= "/2018/08/18/pip-Traceback/" >pip Traceback (most recent call last) 解决方案</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/18</span><a class="archive-post-title" href= "/2018/08/18/mapper/" >mybatis中使用通用mapper作为DAO层</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/18</span><a class="archive-post-title" href= "/2018/08/18/modelMapper/" >使用ModelMapper实现对象到对象的映射</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/17</span><a class="archive-post-title" href= "/2018/08/17/stream/" >使用Java8 stream处理集合</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/16</span><a class="archive-post-title" href= "/2018/08/16/ssm/" >构建SpringBoot+SpringMvc+Mybatis项目</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/16</span><a class="archive-post-title" href= "/2018/08/16/mybatis-generator/" >在SSM中使用mybatis-generator生成DAO层</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/13</span><a class="archive-post-title" href= "/2018/08/13/mysql-access-denied/" >Ubuntu18.04 Mysql无法登录问题解决方案</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/12</span><a class="archive-post-title" href= "/2018/08/12/leetcode6/" >leetcode-6 题解</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/08</span><a class="archive-post-title" href= "/2018/08/08/AccusationsOfBaidu/" >对百度广告的强烈控诉</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/08</span><a class="archive-post-title" href= "/2018/08/08/JVM-memory-model/" >JVM-memory-model</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/08</span><a class="archive-post-title" href= "/2018/08/08/leetcode39/" >leetcode39-组合总和题解</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/08</span><a class="archive-post-title" href= "/2018/08/08/volatile/" >Java volatile关键词使用与原理分析</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/07</span><a class="archive-post-title" href= "/2018/08/07/LeetCode233-countDigitOne/" >Leetcode233 数字1的个数题解</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/07</span><a class="archive-post-title" href= "/2018/08/07/hello-world/" >博客真好玩</a>
+        </li>
+    
+    
+        <li class="archive-post-item">
+            <span class="archive-post-date">08/07</span><a class="archive-post-title" href= "/2018/08/07/hexo-YAMLException-cannot-read-a-block-mapping-entry-solution/" >my-hexo-dir-source-posts-hexo-YAMLException-cannot-read-a-block-mapping-entry-错误的解决办法</a>
+        </li>
+    
+    </div>
+  </div>
+        <div class="sidebar-panel-tags">
+    <div class="sidebar-tags-name">
+    
+        <span class="sidebar-tag-name" data-tags="百度"><span class="iconfont-archer">&#xe606;</span>百度</span>
+    
+        <span class="sidebar-tag-name" data-tags="控诉"><span class="iconfont-archer">&#xe606;</span>控诉</span>
+    
+        <span class="sidebar-tag-name" data-tags="笔试"><span class="iconfont-archer">&#xe606;</span>笔试</span>
+    
+        <span class="sidebar-tag-name" data-tags="springBoot"><span class="iconfont-archer">&#xe606;</span>springBoot</span>
+    
+        <span class="sidebar-tag-name" data-tags="JPA"><span class="iconfont-archer">&#xe606;</span>JPA</span>
+    
+        <span class="sidebar-tag-name" data-tags="JVM"><span class="iconfont-archer">&#xe606;</span>JVM</span>
+    
+        <span class="sidebar-tag-name" data-tags="memory"><span class="iconfont-archer">&#xe606;</span>memory</span>
+    
+        <span class="sidebar-tag-name" data-tags="model"><span class="iconfont-archer">&#xe606;</span>model</span>
+    
+        <span class="sidebar-tag-name" data-tags="TIM"><span class="iconfont-archer">&#xe606;</span>TIM</span>
+    
+        <span class="sidebar-tag-name" data-tags="进程间通信"><span class="iconfont-archer">&#xe606;</span>进程间通信</span>
+    
+        <span class="sidebar-tag-name" data-tags="Leetcode"><span class="iconfont-archer">&#xe606;</span>Leetcode</span>
+    
+        <span class="sidebar-tag-name" data-tags="233"><span class="iconfont-archer">&#xe606;</span>233</span>
+    
+        <span class="sidebar-tag-name" data-tags="HelloWorld"><span class="iconfont-archer">&#xe606;</span>HelloWorld</span>
+    
+        <span class="sidebar-tag-name" data-tags="解决办法"><span class="iconfont-archer">&#xe606;</span>解决办法</span>
+    
+        <span class="sidebar-tag-name" data-tags="isdc"><span class="iconfont-archer">&#xe606;</span>isdc</span>
+    
+        <span class="sidebar-tag-name" data-tags="jetbrain"><span class="iconfont-archer">&#xe606;</span>jetbrain</span>
+    
+        <span class="sidebar-tag-name" data-tags="leetcode"><span class="iconfont-archer">&#xe606;</span>leetcode</span>
+    
+        <span class="sidebar-tag-name" data-tags="39"><span class="iconfont-archer">&#xe606;</span>39</span>
+    
+        <span class="sidebar-tag-name" data-tags="makefile"><span class="iconfont-archer">&#xe606;</span>makefile</span>
+    
+        <span class="sidebar-tag-name" data-tags="mapper"><span class="iconfont-archer">&#xe606;</span>mapper</span>
+    
+        <span class="sidebar-tag-name" data-tags="modelMapper"><span class="iconfont-archer">&#xe606;</span>modelMapper</span>
+    
+        <span class="sidebar-tag-name" data-tags="mutex"><span class="iconfont-archer">&#xe606;</span>mutex</span>
+    
+        <span class="sidebar-tag-name" data-tags="semaphore"><span class="iconfont-archer">&#xe606;</span>semaphore</span>
+    
+        <span class="sidebar-tag-name" data-tags="mybatis"><span class="iconfont-archer">&#xe606;</span>mybatis</span>
+    
+        <span class="sidebar-tag-name" data-tags="oneToMany"><span class="iconfont-archer">&#xe606;</span>oneToMany</span>
+    
+        <span class="sidebar-tag-name" data-tags="mybatis-generator"><span class="iconfont-archer">&#xe606;</span>mybatis-generator</span>
+    
+        <span class="sidebar-tag-name" data-tags="opencv"><span class="iconfont-archer">&#xe606;</span>opencv</span>
+    
+        <span class="sidebar-tag-name" data-tags="pip"><span class="iconfont-archer">&#xe606;</span>pip</span>
+    
+        <span class="sidebar-tag-name" data-tags="ubuntu18.04"><span class="iconfont-archer">&#xe606;</span>ubuntu18.04</span>
+    
+        <span class="sidebar-tag-name" data-tags="mysql"><span class="iconfont-archer">&#xe606;</span>mysql</span>
+    
+        <span class="sidebar-tag-name" data-tags="SpringBoot"><span class="iconfont-archer">&#xe606;</span>SpringBoot</span>
+    
+        <span class="sidebar-tag-name" data-tags="SpringMVC"><span class="iconfont-archer">&#xe606;</span>SpringMVC</span>
+    
+        <span class="sidebar-tag-name" data-tags="Mybatis"><span class="iconfont-archer">&#xe606;</span>Mybatis</span>
+    
+        <span class="sidebar-tag-name" data-tags="systemd"><span class="iconfont-archer">&#xe606;</span>systemd</span>
+    
+        <span class="sidebar-tag-name" data-tags="stream"><span class="iconfont-archer">&#xe606;</span>stream</span>
+    
+        <span class="sidebar-tag-name" data-tags="ubuntu"><span class="iconfont-archer">&#xe606;</span>ubuntu</span>
+    
+        <span class="sidebar-tag-name" data-tags="volatile"><span class="iconfont-archer">&#xe606;</span>volatile</span>
+    
+        <span class="sidebar-tag-name" data-tags="春招"><span class="iconfont-archer">&#xe606;</span>春招</span>
+    
+        <span class="sidebar-tag-name" data-tags="后端"><span class="iconfont-archer">&#xe606;</span>后端</span>
+    
+        <span class="sidebar-tag-name" data-tags="图谱"><span class="iconfont-archer">&#xe606;</span>图谱</span>
+    
+    </div>
+    <div class="iconfont-archer sidebar-tags-empty">&#xe678;</div>
+    <div class="tag-load-fail" style="display: none; color: #ccc; font-size: 0.6rem;">
+    缺失模块。<br/>
+    1、请确保node版本大于6.2<br/>
+    2、在博客根目录（注意不是archer根目录）执行以下命令：<br/>
+    <span style="color: #f75357; font-size: 1rem; line-height: 2rem;">npm i hexo-generator-json-content --save</span><br/>
+    3、在根目录_config.yml里添加配置：
+    <pre style="color: #787878; font-size: 0.6rem;">
+jsonContent:
+  meta: false
+  pages: false
+  posts:
+    title: true
+    date: true
+    path: true
+    text: false
+    raw: false
+    content: false
+    slug: false
+    updated: false
+    comments: false
+    link: false
+    permalink: false
+    excerpt: false
+    categories: true
+    tags: true</pre>
+    </div> 
+    <div class="sidebar-tags-list"></div>
+</div>
+        <div class="sidebar-panel-categories">
+    <div class="sidebar-categories-name">
+    
+    </div>
+    <div class="iconfont-archer sidebar-categories-empty">&#xe678;</div>
+    <div class="sidebar-categories-list"></div>
+</div>
+    </div>
+</div> 
+    <script>
+    var siteMeta = {
+        root: "/",
+        author: "Arch Yi"
+    }
+</script>
+    <!-- CDN failover -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.3.1/dist/jquery.min.js"></script>
+    <script type="text/javascript">
+        if (typeof window.$ === 'undefined')
+        {
+            console.warn('jquery load from jsdelivr failed, will load local script')
+            document.write('<script src="/lib/jquery.min.js">\x3C/script>')
+        }
+    </script>
+    <script src="/scripts/main.js"></script>
+    <!-- algolia -->
+    
+    <!-- busuanzi  -->
+    
+    <script async src="//dn-lbstatics.qbox.me/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+    
+    <!-- CNZZ  -->
+    
+    </div>
+    <!-- async load share.js -->
+    
+        <script src="/scripts/share.js" async></script>    
+     
+    </body>
+</html>
+
+
